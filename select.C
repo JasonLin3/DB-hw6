@@ -29,9 +29,16 @@ const Status QU_Select(const string & result,
    // Qu_Select sets up things and then calls ScanSelect to do the actual work
     cout << "Doing QU_Select " << endl;
 
-	// convert search attr to AttrDesc
-	AttrDesc desc;
-	attrCat->getInfo(result, attr->attrName, desc);
+	// get relation info
+	int relAttrCnt;
+	int reclen;
+	AttrDesc* relDesc;
+	attrCat->getRelInfo(result, relAttrCnt, relDesc);
+	for(int i = 0; i<relAttrCnt; i++) {
+		reclen += relDesc[i].attrLen;
+	}
+
+	cout << "AH2"<< endl; 
 
 	// convert projNames to type AttrDesc
 	AttrDesc projDesc[projCnt];
@@ -39,8 +46,20 @@ const Status QU_Select(const string & result,
 		attrCat->getInfo(result, projNames[i].attrName, projDesc[i]);
 	}
 
-	// perform scan
-	ScanSelect(result, projCnt, projDesc, &desc, op, attrValue, desc.attrLen);
+	// convert search attr to AttrDesc
+	AttrDesc* desc;
+	if(attr != 0) {
+		attrCat->getInfo(result, attr->attrName, *desc);
+		cout << "YAHHHHH"<< endl;
+		ScanSelect(result, projCnt, projDesc, desc, op, attrValue, reclen);
+	} else {
+		// perform scan
+		cout << "AH4"<< endl; 
+		ScanSelect(result, projCnt, projDesc, 0, op, attrValue, reclen);
+	}
+	
+
+	
 }
 
 
@@ -67,13 +86,28 @@ const Status ScanSelect(const string & result,
 
 	// create scan
 	HeapFileScan* hfs = new HeapFileScan(result, status);
-	hfs->startScan(0, reclen, (Datatype)attrDesc->attrType, filter, op);
+	cout << attrDesc << endl;
+	if(attrDesc == 0) {
+		cout << "DEFAULT START SCAN " << endl;
+		hfs->startScan(0, 0, STRING, NULL, EQ);
+	} else {
+		hfs->startScan(attrDesc->attrOffset, reclen, (Datatype)attrDesc->attrType, filter, op);
+		cout << "OFFSET" <<attrDesc->attrOffset<< endl;
+
+		cout << "RECLEN" << reclen << endl;
+
+		cout << "(Datatype)attrDesc->attrType" <<(Datatype)attrDesc->attrType<< endl;
+
+		cout << "FILTER" << filter << endl;
+		cout << "OP" << op << endl;
+	}
 
 	// create InsertHeapFile for result
 	InsertFileScan* ifs = new InsertFileScan(result, status);
-
+	cout << "ERROR STATUS" <<hfs->scanNext(outRid)<< endl;
 	// start scan
 	while(hfs->scanNext(outRid) == OK) {
+		cout<< "STARTED SCAN"<<endl;
 		// get next record
 		hfs->getRecord(nextRec);
 

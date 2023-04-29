@@ -15,7 +15,33 @@ const Status QU_Insert(const string & relation,
 	const attrInfo attrList[])
 {
 // part 6
-return OK;
+	// get relation info
+	int relAttrCnt;
+	AttrDesc* desc;
+	attrCat->getRelInfo(relation, relAttrCnt, desc);
+
+	// reorder attributes
+	Record* newRec = new Record();
+	for(int i = 0; i<relAttrCnt; i++) {
+		for(int j = 0; j<attrCnt; j++) {
+			if(desc[i].attrName == attrList[j].attrName) {
+				memcpy(newRec+desc[i].attrOffset, attrList[j].attrValue, attrList[j].attrLen);
+				break;
+			}
+		}
+	}
+
+	// create InsertHeapFile for result
+	Status status;
+	RID rid;
+	InsertFileScan* ifs = new InsertFileScan(relation, status);
+
+	//insert record
+	ifs->insertRecord(*newRec, rid);
+
+	delete ifs;
+
+	return OK;
 
 }
 

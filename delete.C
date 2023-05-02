@@ -34,7 +34,21 @@ const Status QU_Delete(const string & relation,
 	if(attrName.empty()){
 		hfs->startScan(0,0,STRING, NULL, EQ);
 	} else {
-		hfs->startScan(0, attrDesc.attrLen, (Datatype)attrDesc.attrType, attrValue, op);
+		void* sendVal;
+		int placeHolder;
+		float placeHolderF;
+		if(type == STRING) {
+			sendVal = (void*)attrValue;
+		}
+		else if(type == INTEGER) {
+			placeHolder = stoi(attrValue);
+			sendVal = &placeHolder;
+		}
+		else {
+			placeHolderF = stof(attrValue);
+			sendVal = &placeHolderF;
+		}
+		hfs->startScan(attrDesc.attrOffset, attrDesc.attrLen, type, (char*)sendVal, op);
 	}
 
 	// start scan

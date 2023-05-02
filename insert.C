@@ -28,7 +28,9 @@ const Status QU_Insert(const string & relation,
 
 	// Create new record for reordered attributes
 	void* dataPointer = new char[length];
-	Record* newRec = new Record {dataPointer, length};
+	Record* newRec = new Record();
+	newRec->data = dataPointer;
+	newRec->length = length;
 
 	//Reorder attributes
 	for(int i = 0; i<relAttrCnt; i++) {
@@ -66,7 +68,7 @@ const Status QU_Insert(const string & relation,
 	//insert record
 	ifs->insertRecord(*newRec, rid);
 	
-	cout << "record: " << newRec->data  << endl;
+	// cout << "record: " << newRec->data  << endl;
 
 	delete ifs;
 

@@ -29,37 +29,33 @@ const Status QU_Select(const string & result,
    // Qu_Select sets up things and then calls ScanSelect to do the actual work
     cout << "Doing QU_Select " << endl;
 
+	Status status;
+
 	// get relation info
 	int relAttrCnt;
-	int reclen;
 	AttrDesc* relDesc;
-	attrCat->getRelInfo(result, relAttrCnt, relDesc);
-	for(int i = 0; i<relAttrCnt; i++) {
-		reclen += relDesc[i].attrLen;
-	}
-
-	cout << "AH2"<< endl; 
+	attrCat->getRelInfo(projNames->relName, relAttrCnt, relDesc);
 
 	// convert projNames to type AttrDesc
-	AttrDesc projDesc[projCnt];
+	AttrDesc* projDesc = new AttrDesc[projCnt];
+	// AttrDesc projDesc [projCnt];
+	int reclen = 0;
 	for(int i = 0; i < projCnt; i++) {
-		attrCat->getInfo(result, projNames[i].attrName, projDesc[i]);
+		attrCat->getInfo(projNames->relName, projNames[i].attrName, projDesc[i]);
+		reclen += projDesc[i].attrLen;
 	}
 
 	// convert search attr to AttrDesc
-	AttrDesc* desc;
+	AttrDesc* desc = new AttrDesc();
 	if(attr != 0) {
-		attrCat->getInfo(result, attr->attrName, *desc);
-		cout << "YAHHHHH"<< endl;
-		ScanSelect(result, projCnt, projDesc, desc, op, attrValue, reclen);
+		attrCat->getInfo(projNames->relName, attr->attrName, *desc);
+		status = ScanSelect(result, projCnt, projDesc, desc, op, attrValue, reclen);
 	} else {
 		// perform scan
-		cout << "AH4"<< endl; 
-		ScanSelect(result, projCnt, projDesc, 0, op, attrValue, reclen);
+		status = ScanSelect(result, projCnt, projDesc, 0, op, attrValue, reclen);
 	}
-	
 
-	
+	return status;
 }
 
 
@@ -82,51 +78,60 @@ const Status ScanSelect(const string & result,
 
 	// get relation info
 	int relAttrCnt;
-	attrCat->getRelInfo(result, relAttrCnt, relDesc);
+	attrCat->getRelInfo(projNames->relName, relAttrCnt, relDesc);
 
 	// create scan
-	HeapFileScan* hfs = new HeapFileScan(result, status);
-	cout << attrDesc << endl;
+	HeapFileScan* hfs = new HeapFileScan(relDesc->relName, status);
 	if(attrDesc == 0) {
-		cout << "DEFAULT START SCAN " << endl;
 		hfs->startScan(0, 0, STRING, NULL, EQ);
 	} else {
-		hfs->startScan(attrDesc->attrOffset, reclen, (Datatype)attrDesc->attrType, filter, op);
-		cout << "OFFSET" <<attrDesc->attrOffset<< endl;
-
-		cout << "RECLEN" << reclen << endl;
-
-		cout << "(Datatype)attrDesc->attrType" <<(Datatype)attrDesc->attrType<< endl;
-
-		cout << "FILTER" << filter << endl;
-		cout << "OP" << op << endl;
+		void* sendVal;
+		int placeHolder;
+		float placeHolderF;
+		if((Datatype)attrDesc->attrType == STRING) {
+			sendVal = (void*)filter;
+		}
+		else if((Datatype)attrDesc->attrType == INTEGER) {
+			placeHolder = stoi(filter);
+			sendVal = &placeHolder;
+		}
+		else {
+			placeHolderF = stof(filter);
+			sendVal = &placeHolderF;
+		}
+		hfs->startScan(attrDesc->attrOffset, attrDesc->attrLen, (Datatype)attrDesc->attrType, (char*)sendVal, op);
+		// cout << "OFFSET" <<attrDesc->attrOffset<< endl;
+		// cout << "RECLEN" << reclen << endl;
+		// cout << "(Datatype)attrDesc->attrType" <<(Datatype)attrDesc->attrType<< endl;
+		// cout << "FILTER" << filter << endl;
+		// cout << "OP" << op << endl;
 	}
 
 	// create InsertHeapFile for result
 	InsertFileScan* ifs = new InsertFileScan(result, status);
-	cout << "ERROR STATUS" <<hfs->scanNext(outRid)<< endl;
+	// cout << "ERROR STATUS" <<hfs->scanNext(outRid)<< endl;
 	// start scan
 	while(hfs->scanNext(outRid) == OK) {
-		cout<< "STARTED SCAN"<<endl;
 		// get next record
 		hfs->getRecord(nextRec);
-
-		// project 
+		
+		// Create new record for reordered attributes
+		void* dataPointer = new char[reclen];
 		Record* newRec = new Record();
+		newRec->data = dataPointer;
+		newRec->length = reclen;
 		int offset = 0;
-
+		//cout << nextRec.length << endl;
 		//insert record
 		for(int i = 0; i < projCnt; i++) {
 			for(int j = 0; j < relAttrCnt; j++) {
-				if(relDesc[i].attrName == projNames[j].attrName) {
-					// ADD TYPE CAST
-					memcpy(newRec+offset, (char*)nextRec.data+relDesc[i].attrOffset, relDesc[i].attrLen);
-					offset += relDesc[i].attrLen;
+				if(strcmp(relDesc[j].attrName, projNames[i].attrName) == 0) {
+					memcpy((char*)(newRec->data)+offset, (char*)nextRec.data+relDesc[j].attrOffset, relDesc[j].attrLen);
+					offset += relDesc[j].attrLen;
 					break;
 				}
 			}
 		}
-
 		//insert record
 		ifs->insertRecord(*newRec, outRid);
 	}

@@ -18,7 +18,6 @@ const Status ScanSelect(const string & result,
  * 	OK on success
  * 	an error code otherwise
  */
-
 const Status QU_Select(const string & result, 
 		       const int projCnt, 
 		       const attrInfo projNames[],
@@ -30,35 +29,45 @@ const Status QU_Select(const string & result,
     cout << "Doing QU_Select " << endl;
 
 	Status status;
-
-	// get relation info
 	int relAttrCnt;
 	AttrDesc* relDesc;
+	int reclen = 0;
+
+	// get desc of relation
 	attrCat->getRelInfo(projNames->relName, relAttrCnt, relDesc);
 
-	// convert projNames to type AttrDesc
+	// create array of AttrDesc
 	AttrDesc* projDesc = new AttrDesc[projCnt];
-	// AttrDesc projDesc [projCnt];
-	int reclen = 0;
-	for(int i = 0; i < projCnt; i++) {
+	for(int i = 0; i < projCnt; i++) { // loop through projection names
+		// convert projName to type AttrDesc
 		attrCat->getInfo(projNames->relName, projNames[i].attrName, projDesc[i]);
+		// count length of total record
 		reclen += projDesc[i].attrLen;
 	}
 
-	// convert search attr to AttrDesc
-	AttrDesc* desc = new AttrDesc();
+	// if search attribute exists
 	if(attr != 0) {
+		// convert search attr to AttrDesc
+		AttrDesc* desc = new AttrDesc();
 		attrCat->getInfo(projNames->relName, attr->attrName, *desc);
+		// initialize scanner
 		status = ScanSelect(result, projCnt, projDesc, desc, op, attrValue, reclen);
-	} else {
-		// perform scan
+	} else { // if no search attribute
+		// initialize scanner
 		status = ScanSelect(result, projCnt, projDesc, 0, op, attrValue, reclen);
 	}
 
 	return status;
 }
 
-
+/*
+ * Scans specified relation and puts them into the result relation.
+ * Uses filtering to find all records matching selection criteria.
+ *
+ * Returns:
+ * 	OK on success
+ * 	an error code otherwise
+ */ 
 const Status ScanSelect(const string & result, 
 #include "stdio.h"
 #include "stdlib.h"
@@ -76,41 +85,45 @@ const Status ScanSelect(const string & result,
 	RID outRid;
 	Record nextRec;
 
-	// get relation info
+	// get desc of relation
 	int relAttrCnt;
 	attrCat->getRelInfo(projNames->relName, relAttrCnt, relDesc);
 
-	// create scan
+	// create HeapFileScan with relation
 	HeapFileScan* hfs = new HeapFileScan(relDesc->relName, status);
+
+	// if no filter attr
 	if(attrDesc == 0) {
 		hfs->startScan(0, 0, STRING, NULL, EQ);
-	} else {
+	} else { // if filter attr exists
 		void* sendVal;
 		int placeHolder;
 		float placeHolderF;
+		
+		//Assign void pointer to string attribute value for use in memcpy
 		if((Datatype)attrDesc->attrType == STRING) {
 			sendVal = (void*)filter;
 		}
+		//Convert string attribute value to integer
+		//Assign void pointer to point at integer for use in memcpy
 		else if((Datatype)attrDesc->attrType == INTEGER) {
 			placeHolder = stoi(filter);
 			sendVal = &placeHolder;
 		}
+		//Convert string attribute value to float
+		//Assign void pointer to point at float for use in memcpy
 		else {
 			placeHolderF = stof(filter);
 			sendVal = &placeHolderF;
 		}
+		// initialize scanner
 		hfs->startScan(attrDesc->attrOffset, attrDesc->attrLen, (Datatype)attrDesc->attrType, (char*)sendVal, op);
-		// cout << "OFFSET" <<attrDesc->attrOffset<< endl;
-		// cout << "RECLEN" << reclen << endl;
-		// cout << "(Datatype)attrDesc->attrType" <<(Datatype)attrDesc->attrType<< endl;
-		// cout << "FILTER" << filter << endl;
-		// cout << "OP" << op << endl;
 	}
 
-	// create InsertHeapFile for result
+	// create InsertFileScan for inserting to result table
 	InsertFileScan* ifs = new InsertFileScan(result, status);
-	// cout << "ERROR STATUS" <<hfs->scanNext(outRid)<< endl;
-	// start scan
+	
+	// scan until no more matching records
 	while(hfs->scanNext(outRid) == OK) {
 		// get next record
 		hfs->getRecord(nextRec);
@@ -120,22 +133,32 @@ const Status ScanSelect(const string & result,
 		Record* newRec = new Record();
 		newRec->data = dataPointer;
 		newRec->length = reclen;
+
+		//Create offset for locations in new record
 		int offset = 0;
-		//cout << nextRec.length << endl;
-		//insert record
+		
+		// create new record for result table
 		for(int i = 0; i < projCnt; i++) {
 			for(int j = 0; j < relAttrCnt; j++) {
+				// Find index of next projected attribute
 				if(strcmp(relDesc[j].attrName, projNames[i].attrName) == 0) {
+					//Copy attribute data into new record
 					memcpy((char*)(newRec->data)+offset, (char*)nextRec.data+relDesc[j].attrOffset, relDesc[j].attrLen);
+					//Update location of next data added to new record
 					offset += relDesc[j].attrLen;
 					break;
 				}
 			}
 		}
-		//insert record
-		ifs->insertRecord(*newRec, outRid);
+		
+		// insert record
+		status = ifs->insertRecord(*newRec, outRid);
+		if(status != OK) {
+			return status;
+		}
 	}
 
+	// cleanup
 	hfs->endScan();
 	delete hfs;
 	delete ifs;

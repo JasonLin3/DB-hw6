@@ -9,7 +9,6 @@
  * 	OK on success
  * 	an error code otherwise
  */
-
 const Status QU_Delete(const string & relation, 
 		       const string & attrName, 
 		       const Operator op,
@@ -23,45 +22,59 @@ const Status QU_Delete(const string & relation,
 	AttrDesc attrDesc;
 	RID outRid;
 	Record nextRec;
-
-	// get relation info
 	int relAttrCnt;
+
+	// get desc of relation
 	attrCat->getRelInfo(relation, relAttrCnt, relDesc);
+
+	// get AttrDesc for search attribute
 	attrCat->getInfo(relation, attrName, attrDesc);
 
-	// create scan
+	// create heap file scan on active relation
 	HeapFileScan* hfs = new HeapFileScan(relation, status);
+	
+	// Handle delete for no specified search attribute
 	if(attrName.empty()){
+		// initalize scanner
 		hfs->startScan(0,0,STRING, NULL, EQ);
-	} else {
+	} else { // handle delete with search attribute
+		//Cast data for usage in filter
 		void* sendVal;
-		int placeHolder;
+		int placeHolderI;
 		float placeHolderF;
+		//Assign void pointer to string attribute value for use in memcpy
 		if(type == STRING) {
 			sendVal = (void*)attrValue;
 		}
+		//Convert string attribute value to integer
+		//Assign void pointer to point at integer for use in memcpy
 		else if(type == INTEGER) {
-			placeHolder = stoi(attrValue);
-			sendVal = &placeHolder;
+			placeHolderI = stoi(attrValue);
+			sendVal = &placeHolderI;
 		}
+		//Convert string attribute value to float
+		//Assign void pointer to point at float for use in memcpy
 		else {
 			placeHolderF = stof(attrValue);
 			sendVal = &placeHolderF;
 		}
+		// initialize scanner
 		hfs->startScan(attrDesc.attrOffset, attrDesc.attrLen, type, (char*)sendVal, op);
 	}
 
-	// start scan
+	// scan next record until no more records
 	while(hfs->scanNext(outRid) == OK) {
 		// get next record
 		hfs->getRecord(nextRec);
 		// delete
-		hfs->deleteRecord();
-		
+		status = hfs->deleteRecord();
+		if(status != OK) {
+			return status;
+		}
 	}
 
+	//Cleanup
 	hfs->endScan();
-
 	delete hfs;
 
 	return OK;

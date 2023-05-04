@@ -32,16 +32,18 @@ const Status QU_Delete(const string & relation,
 
 	// create heap file scan on active relation
 	HeapFileScan* hfs = new HeapFileScan(relation, status);
-	
+
+	//Create variables for data casting
+	void* sendVal;
+	int placeHolderI;
+	float placeHolderF;
+
 	// Handle delete for no specified search attribute
 	if(attrName.empty()){
 		// initalize scanner
 		hfs->startScan(0,0,STRING, NULL, EQ);
 	} else { // handle delete with search attribute
 		//Cast data for usage in filter
-		void* sendVal;
-		int placeHolderI;
-		float placeHolderF;
 		//Assign void pointer to string attribute value for use in memcpy
 		if(type == STRING) {
 			sendVal = (void*)attrValue;

@@ -92,14 +92,17 @@ const Status ScanSelect(const string & result,
 	// create HeapFileScan with relation
 	HeapFileScan* hfs = new HeapFileScan(relDesc->relName, status);
 
+
+	//Create variables for data casting
+	void* sendVal;
+	int placeHolderI;
+	float placeHolderF;
+
 	// if no filter attr
 	if(attrDesc == 0) {
 		hfs->startScan(0, 0, STRING, NULL, EQ);
 	} else { // if filter attr exists
-		void* sendVal;
-		int placeHolder;
-		float placeHolderF;
-		
+		//Data casting
 		//Assign void pointer to string attribute value for use in memcpy
 		if((Datatype)attrDesc->attrType == STRING) {
 			sendVal = (void*)filter;
@@ -107,8 +110,8 @@ const Status ScanSelect(const string & result,
 		//Convert string attribute value to integer
 		//Assign void pointer to point at integer for use in memcpy
 		else if((Datatype)attrDesc->attrType == INTEGER) {
-			placeHolder = stoi(filter);
-			sendVal = &placeHolder;
+			placeHolderI = stoi(filter);
+			sendVal = &placeHolderI;
 		}
 		//Convert string attribute value to float
 		//Assign void pointer to point at float for use in memcpy

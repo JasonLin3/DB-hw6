@@ -31,15 +31,18 @@ const Status QU_Insert(const string & relation,
 	newRec->data = dataPointer;
 	newRec->length = length;
 
+
+	//Declare variables for typecasting
+	void* sendVal;
+	int placeHolderI;
+	float placeHolderF;
+
 	// Insert attributes in order
 	for(int i = 0; i<relAttrCnt; i++) {
 		for(int j = 0; j<attrCnt; j++) {
 			// Find index of next projected attribute
 			if(strcmp(desc[i].attrName, attrList[j].attrName) == 0) {
 				//Cast data to be written into new record
-				void* sendVal;
-				int placeHolderI;
-				float placeHolderF;
 				//Assign void pointer to string for memcpy
 				if(desc[i].attrType == STRING) {
 					sendVal = attrList[j].attrValue;
